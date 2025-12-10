@@ -49,23 +49,21 @@ def process_eeg(file_path, l_freq, h_freq, notch_freq, use_model=False):
     # 2. Filtering
     raw_filtered = raw.copy()
     raw_filtered.filter(l_freq=l_freq, h_freq=h_freq, verbose=False)
-    raw_filtered.notch_filter(freqs=notch_freq, verbose=False)
+    raw_filtered.notch_filter(freqs=[notch_freq], verbose=False)
 
     # 3. ICA - only EEG channels
     eeg_picks = mne.pick_types(raw_filtered.info, eeg=True, meg=False, stim=False, eog=False)
     n_channels = len(eeg_picks)
     n_components = min(15, n_channels)  # ICA components <= # of EEG channels
-    ica = ICA(n_components=n_components, max_iter='auto', random_state=97, method='picard')
+    ica = ICA(n_components=n_components, max_iter='auto', random_state=97, method='fastica')
     ica.fit(raw_filtered, picks=eeg_picks, verbose=False)
 
     # 4. Artifact removal (eye, heart, muscle) using heuristic
-    exclude_idx = []  # If no model, leave empty
+    exclude_idx = []
     if not use_model:
-        # Simple automatic exclusion: remove components with high variance (naive approach)
-        # For a real AI, replace with ICLabel or pretrained model
         var = np.var(ica.get_sources(raw_filtered).get_data(), axis=1)
         exclude_idx = [i for i, v in enumerate(var) if v > np.percentile(var, 90)]
-    
+
     ica.exclude = exclude_idx
 
     # Apply cleaning
@@ -82,12 +80,16 @@ def process_eeg(file_path, l_freq, h_freq, notch_freq, use_model=False):
 def plot_psd_comparison(raw_orig, raw_clean):
     """Frequency domain comparison"""
     fig, ax = plt.subplots(figsize=(10, 4))
-    psd_orig = raw_orig.compute_psd(fmax=60)
-    psd_clean = raw_clean.compute_psd(fmax=60)
-    psd_orig.plot(axes=ax, color='red', alpha=0.5, show=False, average=True, spatial_colors=False)
-    psd_clean.plot(axes=ax, color='green', alpha=0.8, show=False, average=True, spatial_colors=False)
+    psd_orig = raw_orig.compute_psd(fmax=60).get_data()
+    psd_clean = raw_clean.compute_psd(fmax=60).get_data()
+    
+    # Plot first channel as example
+    ax.plot(psd_orig[0], color='red', alpha=0.5, label='Original')
+    ax.plot(psd_clean[0], color='green', alpha=0.8, label='Cleaned')
     ax.set_title("Frequency Spectrum (PSD)")
-    ax.legend(["Original", "Cleaned"])
+    ax.set_xlabel("Frequency Bin")
+    ax.set_ylabel("Power")
+    ax.legend()
     plt.tight_layout()
     return fig
 
