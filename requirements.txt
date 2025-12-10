@@ -1,0 +1,5 @@
+streamlit>=1.25.0
+mne>=1.4.0
+numpy>=1.26.0
+matplotlib>=3.8.0
+pandas>=2.0.0
